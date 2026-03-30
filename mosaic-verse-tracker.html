@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mosaic Verse Tracker</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff;
+    --bg2: #f5f5f4;
+    --bg3: #efede8;
+    --text: #1a1a18;
+    --text2: #6b6b67;
+    --text3: #a8a8a3;
+    --border: rgba(0,0,0,0.1);
+    --border2: rgba(0,0,0,0.18);
+    --green-bg: #E1F5EE;
+    --green-mid: #0F6E56;
+    --green-dark: #085041;
+    --red-bg: #FCEBEB;
+    --red-text: #A32D2D;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono: 'SF Mono', 'Fira Code', monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a;
+      --bg2: #252523;
+      --bg3: #2e2e2b;
+      --text: #f0ede8;
+      --text2: #9a9a95;
+      --text3: #5a5a57;
+      --border: rgba(255,255,255,0.1);
+      --border2: rgba(255,255,255,0.18);
+      --green-bg: #04342C;
+      --green-mid: #1D9E75;
+      --green-dark: #9FE1CB;
+      --red-bg: #501313;
+      --red-text: #F7C1C1;
+    }
+  }
+
+  body { font-family: var(--font); background: var(--bg3); color: var(--text); min-height: 100vh; }
+
+  .topbar {
+    background: var(--bg);
+    border-bottom: 0.5px solid var(--border);
+    padding: 0 1.5rem;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 56px; position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-title { font-size: 16px; font-weight: 500; }
+  .conn-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; padding: 4px 10px; border-radius: 10px; cursor: pointer;
+  }
+  .conn-badge.connected { background: var(--green-bg); color: var(--green-dark); }
+  .conn-badge.disconnected { background: var(--red-bg); color: var(--red-text); }
+  .conn-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+  .layout { display: flex; min-height: calc(100vh - 56px); }
+
+  .sidebar {
+    width: 200px; flex-shrink: 0;
+    background: var(--bg);
+    border-right: 0.5px solid var(--border);
+    padding: 1rem 0.75rem;
+    position: sticky; top: 56px; height: calc(100vh - 56px);
+  }
+  .sidebar-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; padding: 0 0.5rem; margin-bottom: 6px; }
+  .nav-btn {
+    display: flex; align-items: center; gap: 9px;
+    width: 100%; padding: 8px 10px; border-radius: var(--radius-md);
+    border: none; background: none; color: var(--text2);
+    font-family: var(--font); font-size: 14px; cursor: pointer;
+    transition: all 0.15s; margin-bottom: 2px; text-align: left;
+  }
+  .nav-btn:hover { background: var(--bg2); color: var(--text); }
+  .nav-btn.active { background: var(--bg2); color: var(--text); font-weight: 500; }
+  .nav-btn:disabled { opacity: 0.35; cursor: default; }
+  .nav-icon { font-size: 15px; width: 18px; text-align: center; }
+
+  .main { flex: 1; padding: 1.5rem; max-width: 860px; }
+
+  .page { display: none; }
+  .page.active { display: block; }
+
+  .page-header { margin-bottom: 1.5rem; }
+  .page-header h1 { font-size: 22px; font-weight: 500; }
+  .page-header p { font-size: 13px; color: var(--text2); margin-top: 4px; }
+
+  .card {
+    background: var(--bg);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .section-title { font-size: 11px; font-weight: 500; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-bottom: 1rem; }
+  .stat-card { background: var(--bg2); border-radius: var(--radius-md); padding: 12px 16px; }
+  .stat-label { font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+  .stat-value { font-size: 24px; font-weight: 500; }
+
+  .input {
+    width: 100%; padding: 8px 12px;
+    border-radius: var(--radius-md);
+    border: 0.5px solid var(--border2);
+    background: var(--bg); color: var(--text);
+    font-size: 14px; font-family: var(--font);
+    transition: border-color 0.15s;
+  }
+  .input:focus { outline: none; border-color: var(--text2); }
+  .input.mono { font-family: var(--mono); font-size: 12px; }
+
+  .btn {
+    padding: 8px 16px; border-radius: var(--radius-md);
+    border: 0.5px solid var(--border2);
+    background: var(--bg); color: var(--text);
+    font-size: 13px; font-family: var(--font);
+    cursor: pointer; transition: all 0.15s;
+  }
+  .btn:hover { background: var(--bg2); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .btn.primary:hover:not(:disabled) { opacity: 0.85; }
+  .btn.small { padding: 5px 11px; font-size: 12px; }
+  .btn.danger { color: var(--red-text); border-color: var(--red-text); }
+  .btn.danger:hover { background: var(--red-bg); }
+
+  .form-row { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 10px; }
+  .form-group { flex: 1; }
+  .form-group label { font-size: 12px; color: var(--text2); display: block; margin-bottom: 4px; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 13px; border-radius: 20px;
+    border: 0.5px solid var(--border2);
+    cursor: pointer; font-size: 13px; color: var(--text2);
+    background: var(--bg); transition: all 0.15s;
+    user-select: none; margin: 3px;
+  }
+  .chip.checked { background: var(--green-bg); border-color: var(--green-mid); color: var(--green-dark); }
+  .chip-dot { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; flex-shrink: 0; }
+  .chip.checked .chip-dot { background: var(--green-mid); border-color: var(--green-mid); }
+
+  .row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 0.5px solid var(--border); }
+  .row:last-child { border-bottom: none; }
+  .row-left { display: flex; align-items: center; gap: 10px; }
+
+  .avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: var(--green-bg); color: var(--green-dark);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 500; flex-shrink: 0;
+  }
+
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--bg2); color: var(--text2); }
+  .badge.green { background: var(--green-bg); color: var(--green-dark); }
+
+  .flex-between { display: flex; align-items: center; justify-content: space-between; }
+
+  .msg { font-size: 13px; margin-top: 8px; }
+  .msg.error { color: var(--red-text); }
+  .msg.success { color: var(--green-mid); }
+
+  .empty { text-align: center; padding: 2.5rem; color: var(--text3); font-size: 14px; }
+
+  .spinner {
+    display: inline-block; width: 13px; height: 13px;
+    border: 2px solid var(--border2); border-top-color: var(--text);
+    border-radius: 50%; animation: spin 0.6s linear infinite;
+    vertical-align: middle; margin-right: 5px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--text); color: var(--bg);
+    padding: 10px 20px; border-radius: 20px; font-size: 13px;
+    opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 999;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 200; padding: 1rem;
+  }
+  .modal {
+    background: var(--bg); border-radius: var(--radius-lg);
+    padding: 1.5rem; width: 100%; max-width: 440px;
+    border: 0.5px solid var(--border2);
+  }
+  .modal h3 { font-size: 16px; font-weight: 500; margin-bottom: 4px; }
+  .modal p { font-size: 13px; color: var(--text2); margin-bottom: 1rem; }
+
+  @media (max-width: 600px) {
+    .sidebar { display: none; }
+    .main { padding: 1rem; }
+    .topbar { padding: 0 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-title">Mosaic Verse Tracker</div>
+  <div class="conn-badge disconnected" id="conn-badge" onclick="openSetup()">
+    <div class="conn-dot"></div>
+    <span id="conn-label">Not connected</span>
+  </div>
+</div>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sidebar-label" style="margin-top:4px;">Menu</div>
+    <button class="nav-btn active" id="nb-dashboard" onclick="showPage('dashboard')" disabled>
+      <span class="nav-icon">▦</span> Dashboard
+    </button>
+    <button class="nav-btn" id="nb-attendance" onclick="showPage('attendance')" disabled>
+      <span class="nav-icon">✓</span> Log attendance
+    </button>
+    <button class="nav-btn" id="nb-members" onclick="showPage('members')" disabled>
+      <span class="nav-icon">◎</span> Members
+    </button>
+    <button class="nav-btn" id="nb-history" onclick="showPage('history')" disabled>
+      <span class="nav-icon">☰</span> History
+    </button>
+    <div style="margin-top:auto;padding-top:1rem;border-top:0.5px solid var(--border);margin-top:1.5rem;">
+      <button class="nav-btn" onclick="openSetup()">
+        <span class="nav-icon">⚙</span> Settings
+      </button>
+    </div>
+  </nav>
+
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <h1>Dashboard</h1>
+        <p>Live overview from your Google Sheet</p>
+      </div>
+      <div class="stats-grid" id="dash-stats">
+        <div class="stat-card"><div class="stat-label">Sessions</div><div class="stat-value">—</div></div>
+        <div class="stat-card"><div class="stat-label">Members</div><div class="stat-value">—</div></div>
+        <div class="stat-card"><div class="stat-label">Avg attendance</div><div class="stat-value">—</div></div>
+        <div class="stat-card"><div class="stat-label">Last session</div><div class="stat-value">—</div></div>
+      </div>
+      <div class="card">
+        <div class="section-title">Recent sessions</div>
+        <div id="dash-recent"><div class="empty">Connect to load data</div></div>
+      </div>
+      <div class="card">
+        <div class="section-title">Top attendees</div>
+        <div id="dash-top"><div class="empty">Connect to load data</div></div>
+      </div>
+    </div>
+
+    <!-- ATTENDANCE -->
+    <div class="page" id="page-attendance">
+      <div class="page-header">
+        <h1>Log attendance</h1>
+        <p>Select a date, check who attended, and save to the sheet</p>
+      </div>
+      <div class="card">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Session date</label>
+            <input type="date" id="session-date" class="input" />
+          </div>
+          <button class="btn primary" onclick="loadSession()">Load</button>
+        </div>
+      </div>
+      <div class="card" id="att-form" style="display:none;">
+        <div class="flex-between" style="margin-bottom:14px;">
+          <div class="section-title" style="margin:0;" id="att-title">Who attended?</div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn small" onclick="selectAll(true)">Select all</button>
+            <button class="btn small" onclick="selectAll(false)">Clear</button>
+          </div>
+        </div>
+        <div id="att-chips" style="margin-bottom:1rem;"></div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button class="btn primary" id="save-btn" onclick="saveAttendance()">Save to sheet</button>
+          <span id="att-status"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- MEMBERS -->
+    <div class="page" id="page-members">
+      <div class="page-header">
+        <h1>Members</h1>
+        <p>Everyone participating in Mosaic Verse</p>
+      </div>
+      <div class="card">
+        <div class="section-title">Add new member</div>
+        <div class="form-row">
+          <input type="text" id="new-name" class="input" placeholder="Full name" onkeydown="if(event.key==='Enter')addMember()" />
+          <button class="btn primary" onclick="addMember()">Add member</button>
+        </div>
+        <div class="msg" id="add-msg"></div>
+      </div>
+      <div class="card">
+        <div class="flex-between" style="margin-bottom:12px;">
+          <div class="section-title" style="margin:0;">All members</div>
+          <span class="badge" id="member-count-badge">0 members</span>
+        </div>
+        <div id="members-list"><div class="empty">Connect to load members</div></div>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="page" id="page-history">
+      <div class="page-header">
+        <h1>History</h1>
+        <p>All recorded attendance sessions</p>
+      </div>
+      <input type="text" class="input" placeholder="Search by name or date..." id="hist-search" oninput="renderHistory()" style="margin-bottom:1rem;" />
+      <div id="hist-list"><div class="empty">Connect to load history</div></div>
+    </div>
+
+  </main>
+</div>
+
+<!-- SETUP MODAL -->
+<div class="modal-overlay" id="setup-modal" style="display:none;">
+  <div class="modal">
+    <h3>Google Sheets connection</h3>
+    <p>Enter your API key and spreadsheet ID to connect the tracker to your live sheet.</p>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label>Google API Key</label>
+      <input type="password" id="cfg-apikey" class="input mono" placeholder="AIza..." />
+    </div>
+    <div class="form-group" style="margin-bottom:14px;">
+      <label>Spreadsheet ID</label>
+      <input type="text" id="cfg-sheetid" class="input mono" value="1mWub-iMQ0lCf3OfLD476FU4_IRMqyrDVdoObGjodx8Q" />
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn primary" id="connect-btn" onclick="connect()">Connect</button>
+      <button class="btn" onclick="closeSetup()">Cancel</button>
+    </div>
+    <div class="msg" id="setup-msg"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const ATT_SHEET = 'Attendance Log';
+let API_KEY = '', SHEET_ID = '1mWub-iMQ0lCf3OfLD476FU4_IRMqyrDVdoObGjodx8Q';
+let members = [], sessions = [], connected = false;
+let currentDate = null, currentAttendees = new Set();
+
+function save(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+function load(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}}
+
+(function init(){
+  const cfg = load('mv_config');
+  if(cfg){
+    if(cfg.apiKey){API_KEY=cfg.apiKey;document.getElementById('cfg-apikey').value=API_KEY;}
+    if(cfg.sheetId){SHEET_ID=cfg.sheetId;document.getElementById('cfg-sheetid').value=SHEET_ID;}
+    if(API_KEY) connect();
+  }
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('session-date').value = today;
+})();
+
+function openSetup(){ document.getElementById('setup-modal').style.display='flex'; }
+function closeSetup(){ document.getElementById('setup-modal').style.display='none'; }
+
+function setConnected(ok){
+  connected = ok;
+  const badge = document.getElementById('conn-badge');
+  badge.className = 'conn-badge ' + (ok?'connected':'disconnected');
+  document.getElementById('conn-label').textContent = ok ? 'Connected' : 'Not connected';
+  ['dashboard','attendance','members','history'].forEach(n => {
+    document.getElementById('nb-'+n).disabled = !ok;
+  });
+}
+
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2400);
+}
+function setMsg(id,msg,type){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.className='msg'+(type?' '+type:'');
+  el.textContent=msg;
+}
+
+function showPage(id){
+  if(!connected) return;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  ['dashboard','attendance','members','history'].forEach(n=>document.getElementById('nb-'+n).classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.getElementById('nb-'+id).classList.add('active');
+  if(id==='dashboard') renderDashboard();
+  if(id==='members') renderMembers();
+  if(id==='history') renderHistory();
+}
+
+async function sheetsGet(range){
+  const url=`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}?key=${API_KEY}`;
+  const r=await fetch(url);
+  if(!r.ok){const e=await r.json();throw new Error(e.error?.message||'Sheets API error');}
+  return r.json();
+}
+async function sheetsPut(range,values){
+  const url=`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED&key=${API_KEY}`;
+  const r=await fetch(url,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({range,majorDimension:'ROWS',values})});
+  if(!r.ok){const e=await r.json();throw new Error(e.error?.message||'Write error');}
+  return r.json();
+}
+async function sheetsAppend(range,values){
+  const url=`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS&key=${API_KEY}`;
+  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({values})});
+  if(!r.ok){const e=await r.json();throw new Error(e.error?.message||'Append error');}
+  return r.json();
+}
+
+async function loadSheetData(){
+  const data=await sheetsGet(`${ATT_SHEET}!A1:Z500`);
+  const rows=data.values||[];
+  if(!rows.length) throw new Error('Sheet is empty or tab name does not match "Attendance Log"');
+  const header=rows[0];
+  members=header.slice(1).filter(n=>n&&n.trim());
+  sessions=[];
+  for(let i=1;i<rows.length;i++){
+    const row=rows[i];
+    if(!row||!row[0]||!row[0].trim()) continue;
+    const date=parseDate(row[0].trim());
+    if(!date) continue;
+    const attendees=[];
+    for(let j=1;j<header.length;j++){
+      if(header[j]&&row[j]&&row[j].trim().toLowerCase()==='x') attendees.push(header[j]);
+    }
+    sessions.push({date,dateRaw:row[0].trim(),rowIndex:i+1,attendees});
+  }
+}
+
+function parseDate(raw){
+  const m=raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m) return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+  const iso=raw.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if(iso) return raw.slice(0,10);
+  return null;
+}
+function formatDate(d){
+  if(!d) return '';
+  const [y,m,day]=d.split('-');
+  const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${mo[parseInt(m)-1]} ${parseInt(day)}, ${y}`;
+}
+function initials(name){ return name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2); }
+
+async function connect(){
+  API_KEY=document.getElementById('cfg-apikey').value.trim();
+  SHEET_ID=document.getElementById('cfg-sheetid').value.trim()||'1mWub-iMQ0lCf3OfLD476FU4_IRMqyrDVdoObGjodx8Q';
+  if(!API_KEY){setMsg('setup-msg','Please enter your API key','error');return;}
+  const btn=document.getElementById('connect-btn');
+  btn.innerHTML='<span class="spinner"></span>Connecting...';
+  btn.disabled=true;
+  setMsg('setup-msg','','');
+  try{
+    await loadSheetData();
+    save('mv_config',{apiKey:API_KEY,sheetId:SHEET_ID});
+    setConnected(true);
+    setMsg('setup-msg','Connected!','success');
+    setTimeout(()=>closeSetup(),800);
+    showPage('dashboard');
+  }catch(e){
+    setMsg('setup-msg','Error: '+e.message,'error');
+    setConnected(false);
+  }
+  btn.textContent='Connect'; btn.disabled=false;
+}
+
+function renderDashboard(){
+  const total=sessions.length;
+  const allAtt=sessions.flatMap(s=>s.attendees);
+  const avg=total?Math.round(allAtt.length/total):0;
+  const last=sessions.length?sessions[sessions.length-1]:null;
+  document.getElementById('dash-stats').innerHTML=`
+    <div class="stat-card"><div class="stat-label">Sessions</div><div class="stat-value">${total}</div></div>
+    <div class="stat-card"><div class="stat-label">Members</div><div class="stat-value">${members.length}</div></div>
+    <div class="stat-card"><div class="stat-label">Avg attendance</div><div class="stat-value">${avg}</div></div>
+    <div class="stat-card"><div class="stat-label">Last session</div><div class="stat-value">${last?last.attendees.length:0}</div></div>
+  `;
+  const recent=[...sessions].reverse().slice(0,5);
+  document.getElementById('dash-recent').innerHTML=recent.length?recent.map(s=>`
+    <div class="row">
+      <div>
+        <div style="font-size:14px;">${formatDate(s.date)}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px;">${s.attendees.length} of ${members.length} attended</div>
+      </div>
+      <button class="btn small" onclick="editSession('${s.date}')">Edit</button>
+    </div>
+  `).join(''):'<div class="empty">No sessions recorded yet</div>';
+  const counts={};
+  allAtt.forEach(a=>counts[a]=(counts[a]||0)+1);
+  const top=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  document.getElementById('dash-top').innerHTML=top.length?top.map(([name,count])=>`
+    <div class="row">
+      <div class="row-left">
+        <div class="avatar">${initials(name)}</div>
+        <span style="font-size:14px;">${name}</span>
+      </div>
+      <span class="badge green">${count} sessions</span>
+    </div>
+  `).join(''):'<div class="empty">No attendance data yet</div>';
+}
+
+async function loadSession(){
+  const d=document.getElementById('session-date').value;
+  if(!d){showToast('Pick a date first');return;}
+  currentDate=d;
+  const existing=sessions.find(s=>s.date===d);
+  currentAttendees=new Set(existing?existing.attendees:[]);
+  document.getElementById('att-form').style.display='block';
+  document.getElementById('att-title').textContent=existing?`Editing — ${formatDate(d)}`:`New session — ${formatDate(d)}`;
+  renderChips();
+}
+function renderChips(){
+  document.getElementById('att-chips').innerHTML=members.map(name=>`
+    <div class="chip ${currentAttendees.has(name)?'checked':''}" onclick="togglePerson(${JSON.stringify(name)})">
+      <div class="chip-dot"></div>${name}
+    </div>
+  `).join('');
+}
+function togglePerson(name){
+  if(currentAttendees.has(name))currentAttendees.delete(name);else currentAttendees.add(name);
+  renderChips();
+}
+function selectAll(v){
+  currentAttendees=v?new Set(members):new Set();
+  renderChips();
+}
+
+async function saveAttendance(){
+  if(!currentDate) return;
+  const btn=document.getElementById('save-btn');
+  const status=document.getElementById('att-status');
+  btn.disabled=true;
+  status.innerHTML='<span class="spinner"></span>Saving...';
+  try{
+    await loadSheetData();
+    const dateCol=(await sheetsGet(`${ATT_SHEET}!A1:A500`)).values||[];
+    const fmtDate=`${currentDate.slice(5,7)}/${currentDate.slice(8,10)}/${currentDate.slice(0,4)}`;
+    const rowNum=dateCol.findIndex(r=>parseDate(r[0]||'')===currentDate);
+    const endCol=String.fromCharCode(65+members.length);
+    const rowVals=[fmtDate,...members.map(m=>currentAttendees.has(m)?'x':'')];
+    if(rowNum<0){
+      await sheetsAppend(`${ATT_SHEET}!A:A`,[rowVals]);
+      showToast('New session saved to sheet');
+    }else{
+      await sheetsPut(`${ATT_SHEET}!A${rowNum+1}:${endCol}${rowNum+1}`,[rowVals]);
+      showToast('Session updated in sheet');
+    }
+    await loadSheetData();
+  }catch(e){
+    showToast('Error: '+e.message);
+  }
+  btn.disabled=false;
+  status.innerHTML='';
+}
+
+function renderMembers(){
+  document.getElementById('member-count-badge').textContent=members.length+' members';
+  const counts={};
+  sessions.forEach(s=>s.attendees.forEach(a=>counts[a]=(counts[a]||0)+1));
+  document.getElementById('members-list').innerHTML=members.length?members.map(name=>`
+    <div class="row">
+      <div class="row-left">
+        <div class="avatar">${initials(name)}</div>
+        <div>
+          <div style="font-size:14px;">${name}</div>
+          <div style="font-size:12px;color:var(--text2);">${counts[name]||0} sessions attended</div>
+        </div>
+      </div>
+      <span class="badge green">${Math.round((counts[name]||0)/Math.max(sessions.length,1)*100)}%</span>
+    </div>
+  `).join(''):'<div class="empty">No members found</div>';
+}
+
+async function addMember(){
+  const input=document.getElementById('new-name');
+  const name=input.value.trim();
+  if(!name) return;
+  if(members.includes(name)){setMsg('add-msg','Member already exists','error');return;}
+  try{
+    const nextCol=String.fromCharCode(65+members.length+1);
+    await sheetsPut(`${ATT_SHEET}!${nextCol}1`,[[name]]);
+    await loadSheetData();
+    input.value='';
+    setMsg('add-msg',`${name} added to sheet`,'success');
+    renderMembers();
+    showToast(`${name} added`);
+  }catch(e){
+    setMsg('add-msg','Error: '+e.message,'error');
+  }
+}
+
+function renderHistory(){
+  const q=(document.getElementById('hist-search')?.value||'').toLowerCase();
+  const filtered=[...sessions].reverse().filter(s=>{
+    if(!q) return true;
+    return formatDate(s.date).toLowerCase().includes(q)||s.attendees.some(a=>a.toLowerCase().includes(q));
+  });
+  document.getElementById('hist-list').innerHTML=filtered.length?filtered.map(s=>`
+    <div class="card">
+      <div class="flex-between" style="margin-bottom:10px;">
+        <div>
+          <div style="font-size:15px;font-weight:500;">${formatDate(s.date)}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px;">${s.attendees.length} of ${members.length} attended</div>
+        </div>
+        <button class="btn small" onclick="editSession('${s.date}')">Edit</button>
+      </div>
+      <div>${s.attendees.map(a=>`<div class="chip checked" style="cursor:default;"><div class="chip-dot" style="background:var(--green-mid);border-color:var(--green-mid);"></div>${a}</div>`).join('')}</div>
+    </div>
+  `).join(''):'<div class="empty">No sessions found</div>';
+}
+
+function editSession(date){
+  document.getElementById('session-date').value=date;
+  showPage('attendance');
+  loadSession();
+}
+</script>
+</body>
+</html>
